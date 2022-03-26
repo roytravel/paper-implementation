@@ -110,8 +110,9 @@ if __name__ == "__main__":
 
     
     criterion = nn.CrossEntropyLoss().cuda()
-    optimizer = torch.optim.SGD(lr=LEARNING_RATE, weight_decay=5e-3, params=vggnet.parameters(), momentum=0.9)
-    torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1)
+    #optimizer = torch.optim.SGD(lr=LEARNING_RATE, weight_decay=5e-3, params=vggnet.parameters(), momentum=0.9)
+    optimizer = torch.optim.Adam(params=vggnet.parameters(), lr=LEARNING_RATE, weight_decay=5e-3)
+    torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=3)
     torch.nn.parallel.DataParallel(vggnet, device_ids=[0, ])
 
     start_time = time.time()
@@ -141,4 +142,5 @@ if __name__ == "__main__":
             'model': vggnet.state_dict(),
             'seed': seed,
         }
-        torch.save(state, CHECKPOINT_PATH+'model_{}.pth'.format(epoch))
+        if epoch % 15 == 0:
+            torch.save(state, CHECKPOINT_PATH+'model_{}.pth'.format(epoch))
