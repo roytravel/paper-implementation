@@ -82,7 +82,7 @@ if __name__ == "__main__":
     seed = torch.initial_seed()
     BATCH_SIZE= 24
     NUM_EPOCHS = 100
-    LEARNING_RATE = 0.01
+    LEARNING_RATE = 0.001
     CHECKPOINT_PATH = "./checkpoint/"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -110,16 +110,15 @@ if __name__ == "__main__":
 
     
     criterion = nn.CrossEntropyLoss().cuda()
-    #optimizer = torch.optim.SGD(lr=LEARNING_RATE, weight_decay=5e-3, params=vggnet.parameters(), momentum=0.9)
-    optimizer = torch.optim.Adam(params=vggnet.parameters(), lr=LEARNING_RATE, weight_decay=5e-3)
-    torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=3)
-    torch.nn.parallel.DataParallel(vggnet, device_ids=[0, ])
+    optimizer = torch.optim.SGD(lr=LEARNING_RATE, weight_decay=5e-3, params=vggnet.parameters(), momentum=0.9)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=3, verbose=True)
+    vggnet = torch.nn.parallel.DataParallel(vggnet, device_ids=[0, ])
 
     start_time = time.time()
     """ labels = ['airplane', 'bird', 'car', 'cat', 'deer', 'dog', 'horse', 'monkey', 'ship', 'truck']"""
     for epoch in range(NUM_EPOCHS):
-        running_loss = 0.0
-        for idx, _data in enumerate(train_dataloader, 0):
+        print("lr: ", optimizer.param_groups[0]['lr'])
+        for idx, _data in enumerate(train_dataloader, start=0):
             images, labels = _data
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
@@ -127,13 +126,14 @@ if __name__ == "__main__":
             loss = criterion(output, labels)
             loss.backward()
             optimizer.step()
-            running_loss += loss.item()
 
             if idx % 10 == 0:
                 with torch.no_grad():
                     _, preds = torch.max(output, 1)
                     accuracy = torch.sum(preds == labels)
                     print ('Epoch: {} \tStep: {}\tLoss: {:.4f} \tAccuracy: {}'.format(epoch+1, idx, loss.item(), accuracy.item() / BATCH_SIZE))
+                    scheduler.step(loss)
+                    
 
         #checkpoint_path = os.path.join(CHECKPOINT_PATH)
         state = {
@@ -142,5 +142,5 @@ if __name__ == "__main__":
             'model': vggnet.state_dict(),
             'seed': seed,
         }
-        if epoch % 15 == 0:
+        if epoch % 10 == 0:
             torch.save(state, CHECKPOINT_PATH+'model_{}.pth'.format(epoch))
