@@ -72,12 +72,13 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print (device)
     alexnet = AlexNet(num_classes=10)
-    #alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=[0,])
+    alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=[0,])
 
     # hyper parameters
     NUM_EPOCHS = 90
     BATCH_SIZE = 64
     LEARNING_RATE = 0.01
+    TRAIN_IMG_DIR = "../data"
     CHECKPOINT_PATH = "./checkpoint"
 
     # dataset
@@ -88,7 +89,7 @@ if __name__ == "__main__":
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
 
-    dataset = datasets.CIFAR('./data', train=True, download=True, transform=transform)
+    dataset = datasets.ImageFolder(TRAIN_IMG_DIR, transform=transform)
     print (dataset.data.shape)
     print ('[*] Dataset Created')
 
