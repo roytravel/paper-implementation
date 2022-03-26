@@ -19,9 +19,7 @@ class VGGNet(nn.Module):
         super(VGGNet, self).__init__()
         self.num_classes = num_classes
         self.features = self._make_layers(CONFIGURES[vgg_name], batch_norm=False)
-
         self.avgpool = nn.AdaptiveAvgPool2d(output_size=(7, 7))
-
         self.classifier = nn.Sequential(
             nn.Linear(in_features=512 * 7 * 7, out_features=4096),
             nn.ReLU(inplace=True),
@@ -29,9 +27,8 @@ class VGGNet(nn.Module):
             nn.Linear(in_features=4096, out_features=4096),
             nn.ReLU(inplace=True),
             nn.Dropout(p=0.5),
-            nn.Linear(in_features=4096, out_features=1000),
+            nn.Linear(in_features=4096, out_features=num_classes),
         )
-
         if init_weights:
             self._init_weight()
 
@@ -65,10 +62,9 @@ class VGGNet(nn.Module):
             if value == "M":
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
-                #value = cast(int, value)
                 conv2d = nn.Conv2d(in_channels=in_channels, out_channels=value, kernel_size=3, padding=1)
                 if batch_norm:
-                    layers += [conv2d, nn.BatchNorm2d(vgg), nn.ReLU(inplace=True)]
+                    layers += [conv2d, nn.BatchNorm2d(value), nn.ReLU(inplace=True)]
                 else:
                     layers += [conv2d, nn.ReLU(inplace=True)]
 
@@ -83,20 +79,27 @@ if __name__ == "__main__":
     # print (y.size(), torch.argmax(y))
 
     # set hyper-parameter
-    BATCH_SIZE= 256
-    NUM_EPOCHS = 74 # (?)
+    seed = torch.initial_seed()
+    BATCH_SIZE= 24
+    NUM_EPOCHS = 100
     LEARNING_RATE = 0.01
-    CHECKPOINT_PATH = "./checkpoint"
+    CHECKPOINT_PATH = "./checkpoint/"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    vggnet = VGGNet(num_classes=1000, init_weights=True, vgg_name="VGG19")
+    vggnet = VGGNet(num_classes=10, init_weights=True, vgg_name="VGG19")
 
+    # preprocess = transforms.Compose([
+    #     transforms.RandomResizedCrop(size=224),
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.ColorJitter(),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=(0.48235, 0.45882, 0.40784), std=(1.0/255.0, 1.0/255.0, 1.0/255.0))
+    # ])
     preprocess = transforms.Compose([
-        transforms.RandomResizedCrop(size=224),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(),
+        # transforms.Resize(256),
+        # transforms.RandomCrop(224),
         transforms.ToTensor(),
-        transforms.Normalize(mean=(0.48235, 0.45882, 0.40784), std=(1.0/255.0, 1.0/255.0, 1.0/255.0))
+        #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
 
     train_dataset = datasets.STL10(root='./data', download=True, split='train', transform=preprocess)
@@ -105,29 +108,37 @@ if __name__ == "__main__":
     test_dataset = datasets.STL10(root='./data', download=True, split='test', transform=preprocess)
     test_dataloader = data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    classes = ['airplane', 'bird', 'car', 'cat', 'deer', 'dog', 'horse', 'monkey', 'ship', 'truck']
+    
     criterion = nn.CrossEntropyLoss().cuda()
     optimizer = torch.optim.SGD(lr=LEARNING_RATE, weight_decay=5e-3, params=vggnet.parameters(), momentum=0.9)
-    torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=10)
-    torch.nn.parallel.DistributedDataParallel(vggnet, device_ids=[0, ])
+    torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1)
+    torch.nn.parallel.DataParallel(vggnet, device_ids=[0, ])
 
     start_time = time.time()
+    """ labels = ['airplane', 'bird', 'car', 'cat', 'deer', 'dog', 'horse', 'monkey', 'ship', 'truck']"""
     for epoch in range(NUM_EPOCHS):
         running_loss = 0.0
-        for idx, data in enumerate(train_dataloader, 0):
-            images, labels = data
+        for idx, _data in enumerate(train_dataloader, 0):
+            images, labels = _data
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            outputs = vggnet(images)
-            loss = criterion(outputs, labels)
+            output = vggnet(images)
+            loss = criterion(output, labels)
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
 
-            if i % 10 == 0:
-                print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 50))
-                running_loss = 0.0
+            if idx % 10 == 0:
+                with torch.no_grad():
+                    _, preds = torch.max(output, 1)
+                    accuracy = torch.sum(preds == labels)
+                    print ('Epoch: {} \tStep: {}\tLoss: {:.4f} \tAccuracy: {}'.format(epoch+1, idx, loss.item(), accuracy.item() / BATCH_SIZE))
 
-    print (time.time() - start_time)
-    print ('Finished Training')
-    torch.save(vggnet.state_dict(), './checkpoint')
+        #checkpoint_path = os.path.join(CHECKPOINT_PATH)
+        state = {
+            'epoch': epoch,
+            'optimizer': optimizer.state_dict(),
+            'model': vggnet.state_dict(),
+            'seed': seed,
+        }
+        torch.save(state, CHECKPOINT_PATH+'model_{}.pth'.format(epoch))
