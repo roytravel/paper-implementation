@@ -8,8 +8,9 @@ import torchvision.transforms as transforms
 from torch.utils import data
 #from tqdm import tqdm
 import logging
+from glob import glob
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 class AlexNet(nn.Module):
     def __init__(self, num_classes=1000):
         super().__init__()
@@ -73,7 +74,7 @@ if __name__ == "__main__":
     NUM_EPOCHS = 1000
     BATCH_SIZE = 128
     NUM_CLASSES = 1000
-    LEARNING_RATE = 0.0001
+    LEARNING_RATE = 0.00005 # 1) 0.0001 2) 0.00001
     IMAGE_SIZE = 227
     TRAIN_IMG_DIR = "C:/github/paper-implementation/data/ILSVRC2012_img_train/"
     #VALID_IMG_DIR = "<INPUT VALID IMAGE DIR>"
@@ -81,12 +82,17 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print (f'[*] Device : {device}')
+
     alexnet = AlexNet(num_classes=NUM_CLASSES).cuda()
+    checkpoints = glob(CHECKPOINT_PATH+'*.pth') # Is there a checkpoint file?
+    if checkpoints:
+        checkpoint = torch.load(checkpoints[-1])
+        alexnet.load_state_dict(checkpoint['model'])
     #alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=[0,]) # for distributed training using multi-gpu
 
     transform = transforms.Compose(
         [transforms.CenterCrop(IMAGE_SIZE),
-         #transforms.RandomHorizontalFlip(),
+         transforms.RandomHorizontalFlip(),
          transforms.ToTensor(),
          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
@@ -108,15 +114,13 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(params=alexnet.parameters(), lr=LEARNING_RATE)
     print ('[*] Optimizer Created')
 
-    #lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.1, verbose=True) # used if valid error doesn't improve.
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.1, verbose=True, patience=4) # used if valid error doesn't improve.
     print ('[*] Learning Scheduler created')
 
     steps = 1
-    for epoch in range(NUM_EPOCHS):
-        logging.info(f" training on epoch {epoch}...")
-        lr_scheduler.step()
-        for batch_idc, (images, classes) in enumerate(train_dataloader):
+    for epoch in range(50, NUM_EPOCHS):
+        logging.info(f" training on epoch {epoch}...")        
+        for batch_idx, (images, classes) in enumerate(train_dataloader):
             images, classes = images.cuda(), classes.cuda()
             output = alexnet(images)
             loss = F.cross_entropy(input=output, target=classes)
@@ -130,8 +134,9 @@ if __name__ == "__main__":
                     print ('[*] Epoch: {} \tStep: {}\tLoss: {:.4f} \tAccuracy: {}'.format(epoch+1, steps, loss.item(), accuracy.item() / BATCH_SIZE))
             steps = steps + 1
 
-        #lr_scheduler.step(metrics=loss)
-        if epoch % 10 == 0:
+        lr_scheduler.step(metrics=loss)
+
+        if epoch % 5 == 0:
             checkpoint_path = os.path.join(CHECKPOINT_PATH, "model_{}.pth".format(epoch))
             state = {
                 'epoch': epoch,
