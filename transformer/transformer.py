@@ -7,8 +7,6 @@ Reference
 import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import utils
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -33,7 +31,6 @@ class PositionalEncoding(nn.Module): # OK
 
         self.pe[:, 0::2] = torch.sin(pos / (10000 ** (_2i / d_model)))
         self.pe[:, 1::2] = torch.cos(pos / (10000 ** (_2i / d_model)))
-
 
     def forward(self, x):
         batch_size, seq_len = x.size()
@@ -61,7 +58,6 @@ class ScaledDotProductAttention(nn.Module): # OK
 
         attn_score = nn.Softmax(attn_score, dim=-1)
         x = torch.matmul(attn_score, value)
-
         return x, attn_score
 
 
@@ -92,27 +88,17 @@ class MultiHeadAttention(nn.Module): # OK
         x = self.w_concat(x)
         return x
 
-
     def split(self, tensor):
         batch_size, length, d_model = tensor.size()
         d_k = d_model // self.num_head
         tensor = tensor.view(batch_size, length, self.num_head, d_k).transpose(1, 2)
-
         return tensor
 
     def concat(self, tensor):
         batch_size, head, length, d_k = tensor.size()
         d_model = head * d_k
-
         tensor = tensor.transpose(1, 2).contiguous().view(batch_size, length, d_model)
         return tensor
-
-        # x = x.transpose(1, 2).contiguous()
-        # x = x.view(batch_size, -1, self.num_head * self.d_v)
-        # x = self.output_layer(x)
-        # attention_result, attention_score = self.self_attention(query, key, value, mask)
-        # attention_result = attention_result.transpose(1, 2).contiguous().view(batch_size, -1, self.num_head * self.d_k)
-        # return self.w_o(attention_result)
 
 
 class LayerNorm(nn.Module): # OK
@@ -150,7 +136,7 @@ class PositionwiseFeedForward(nn.Module): # OK
 class EncoderLayer(nn.Module): # OK
     def __init__(self, d_model=512, d_ff=2048, dropout_rate=0.1, num_heads=None):
         super(EncoderLayer, self).__init__()
-        self.self_attention = MultiHeadAttention(num_head=num_heads)
+        self.self_attention = MultiHeadAttention(d_model=d_model, num_head=num_heads)
         self.norm1 = nn.LayerNorm(d_model, eps=1e-6)
         self.dropout1 = nn.Dropout(p=dropout_rate)
 
@@ -184,7 +170,7 @@ class Encoder(nn.Module): # OK
                  max_seq_len=None, device=None):
         super(Encoder, self).__init__()
         self.embedding = TransformerEmbedding(d_model=d_model,
-                                              max_len=max_seq_len,
+                                              max_seq_len=max_seq_len,
                                               vocab_size=enc_voc_size,
                                               dropout_rate=dropout_rate,
                                               device=DEVICE)
@@ -196,25 +182,23 @@ class Encoder(nn.Module): # OK
         x = self.embedding(x)
         for layer in self.layers:
             x = layer(x, src_mask)
-
         return x
 
 
 class DecoderLayer(nn.Module): # OK
-    def __init__(self, d_model, d_ff, dropout_rate=0.1):
+    def __init__(self, d_model, d_ff, num_heads, dropout_rate=0.1):
         super(DecoderLayer, self).__init__()
-        self.self_attention = MultiHeadAttention(d_model, dropout_rate)
-        self.norm1 = LayerNorm(d_model, eps=1e-6)
+        self.self_attention = MultiHeadAttention(d_model=d_model, num_head=num_heads)
+        self.norm1 = LayerNorm(d_model=d_model, eps=1e-6)
         self.dropout1 = nn.Dropout(dropout_rate)
 
-        self.enc_dec_attention = MultiHeadAttention(d_model, dropout_rate)
-        self.norm2 = LayerNorm(d_model, eps=1e-6)
+        self.enc_dec_attention = MultiHeadAttention(d_model=d_model, num_head=num_heads)
+        self.norm2 = LayerNorm(d_model=d_model, eps=1e-6)
         self.dropout2 = nn.Dropout(dropout_rate)
 
-        self.ff = PositionwiseFeedForward(d_model, d_ff, dropout_rate)
-        self.norm3 = LayerNorm(d_model, eps=1e-6)
+        self.ff = PositionwiseFeedForward(d_model=d_model, d_ff=d_ff, dropout_rate=dropout_rate)
+        self.norm3 = LayerNorm(d_model=d_model, eps=1e-6)
         self.dropout3 = nn.Dropout(p=dropout_rate)
-
 
     def forward(self, dec, enc, src_mask, trg_mask):
         _x = dec
@@ -238,28 +222,33 @@ class DecoderLayer(nn.Module): # OK
         return x
 
 
-
 class Decoder(nn.Module):
-    def __init__(self, d_model=512, d_ff=2048, dropout_rate=0.1, num_layers=6):
+    def __init__(self, d_model=512, d_ff=2048,
+                 dropout_rate=0.1, num_layers=6,
+                 dec_vob_size=None, num_heads=None,
+                 max_seq_length=None, device=DEVICE):
         super(Decoder, self).__init__()
 
-        decoders = [DecoderLayer(d_model, d_ff, dropout_rate) for _ in range(num_layers)]
-        self.layers = nn.ModuleList(num_layers)
-        self.last_norm = nn.LayerNorm(d_model, eps=1e-6)
+        self.emb = TransformerEmbedding(d_model=d_model,
+                                        dropout_rate=dropout_rate,
+                                        vocab_size=dec_vob_size,
+                                        max_seq_len=max_seq_length,
+                                        device=DEVICE)
 
-    def forward(self, targets, enc_output, i_mask, t_self_mask, cache):
-        decoder_output = targets
-        for i, dec_layer in enumerate(self.layers):
-            layer_cache = None
-            if cache is not None:
-                if i not in cache:
-                    cache[i] = {}
-                layer_cache = cache[i]
-            decoder_output = dec_layer(decoder_output, enc_output, t_self_mask, i_mask, layer_cache)
-        return self.last_norm(decoder_output)
+        self.layers = nn.ModuleList([DecoderLayer(d_model=d_model, d_ff=d_ff, dropout_rate=dropout_rate, num_heads=num_heads) for _ in range(num_layers)])
+        self.linear = nn.LayerNorm(d_model, eps=1e-6)
+
+    def forward(self, trg, src, trg_mask, src_mask):
+        trg = self.emb(trg)
+
+        for layer in self.layers:
+            trg = layer(trg, src, trg_mask, src_mask)
+
+        out = self.linear(trg)
+        return out
 
 
-class TokenEmbedding(nn.Embdding):
+class TokenEmbedding(nn.Embedding):
     def __init__(self, vocab_size, d_model):
         super(TokenEmbedding, self).__init__(vocab_size, d_model, padding_idx=1)
 
@@ -278,91 +267,52 @@ class TransformerEmbedding(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self,i_vocab_size, t_vocab_size,
-                 num_layers=6, d_model=512, d_ff=2048,
-                 dropout_rate=0.1, share_target_embedding=True,
-                 has_inputs=True, src_pad_idx=None, trg_pad_idx=None):
+    def __init__(self, src_pad_idx, trg_pad_idx, trg_sos_idx,
+                 enc_voc_size, dec_voc_size, d_model, d_ff,
+                 max_seq_len, num_layers, num_heads, dropout_rate, device):
         super(Transformer, self).__init__()
 
-        self.d_model = d_model
-        self.emb_scale = pow(d_model, 0.5)
-        self.has_inputs = has_inputs
         self.src_pad_idx = src_pad_idx
         self.trg_pad_idx = trg_pad_idx
-
-        self.t_vocab_embedding = nn.Embedding(t_vocab_size, d_model)
-        nn.init.normal_(self.t_vocab_embedding.weeight, mean=0, std=pow(d_model, -0.5))
-        self.t_emb_dropout = nn.Dropout(p=dropout_rate)
-        self.decoder = Decoder(d_model, d_ff, dropout_rate, num_layers)
-
-        if has_inputs:
-            if not share_target_embedding:
-                self.i_vocab_embedding = nn.Embedding(i_vocab_size, d_model)
-                nn.init.normal_(self.i_vocab_embedding.weight, mean=0, std=pow(d_model, -0.5))
-            else:
-                self.i_vocab_embedding = self.t_vocab_embedding
-
-            self.i_emb_dropout = nn.Dropout(p=dropout_rate)
-            self.encoder = Encoder(d_model, d_ff, dropout_rate, num_layers)
+        self.trg_sos_idx = trg_sos_idx
+        self.d_model = d_model
+        self.emb_scale = pow(d_model, 0.5)
 
 
-        # For Positional Encoding
-        num_timescales = self.d_model // 2
-        max_timescale = 10000.0
-        min_timescale = 1.0
+        self.encoder = Encoder(d_model=d_model, num_heads=num_heads,
+                               max_seq_len=max_seq_len, d_ff=d_ff,
+                               enc_voc_size=enc_voc_size, dropout_rate=dropout_rate,
+                               num_layers=num_layers, device=DEVICE)
 
-        log_timescale_increment = (math.log(float(max_timescale) / float(min_timescale)) / max(num_timescales -1, 1))
-        inv_timescales = min_timescale * torch.exp(torch.arange(num_timescales, dtype=torch.float32))
-        self.register_buffer('inv_timescales', inv_timescales)
+        self.decoder = Decoder(d_model=d_model, num_heads=num_heads,
+                               max_seq_length=max_seq_len, d_ff=d_ff,
+                               dec_vob_size=dec_voc_size, dropout_rate=dropout_rate,
+                               num_layers=num_layers, device=DEVICE)
 
-    def forward(self, inputs, targets):
-        enc_output, i_mask = None, None
-        if self.has_inputs:
-            i_mask = utils.create_pad_mask(inputs, self.src_pad_idx)
-            enc_output = self.encode(inputs, i_mask)
+    def forward(self, src, trg):
+        src_mask = self._make_pad_mask(src, src)
+        src_trg_mask = self._make_pad_mask(trg, src)
+        trg_mask = self._make_pad_mask(trg, trg) * self._make_no_peak_mask(trg, trg)
 
-        t_mask = utils.create_pad_mask(targets, self.trg_pad_idx)
-        target_size = targets.size()[1]
-        t_self_mask = utils.create_trg_self_mask(target_size, device=targets.device)
-
-        return self.decode(targets, enc_output, i_mask, t_self_mask, t_mask)
-
-
-    def encode(self, inputs, i_mask):
-        # Input embedding
-        input_embedded = self.i_vocab_embedding(inputs)
-        input_embedded.masked_fill_(i_mask.squeeze(1).unsqueeze(-1), 0)
-        input_embedded *= self.emb_scale
-        input_embedded += self.get_position_encoding(inputs)
-        input_embedded = self.i_emb_dropout(input_embedded)
-
-        return self.encoder(input_embedded, i_mask)
-
-    def decode(self, targets, enc_output, i_mask, t_self_mask, t_mask, cache=None):
-        # target embedding
-        target_embedded = self.t_vocab_embedding(targets)
-        target_embedded.masked_fill_(t_mask.squeeze(1).unsqueeze(-1), 0)
-
-        # Shifting
-        target_embedded = target_embedded[:, :-1]
-        target_embedded = F.pad(target_embedded, (0, 0, 1, 0))
-
-        target_embedded *= self.emb_scale
-        target_embedded += self.get_position_encoding(targets)
-        target_embedded = self.t_emb_dropout(target_embedded)
-
-        # decoder
-        decoder_output = self.decoder(target_embedded, enc_output, i_mask, t_self_mask, cache)
-        # linear
-        output = torch.matmul(decoder_output, self.t_vocab_embedding.weight.transpose(0, 1))
-
+        enc_src = self.encoder(src, src_mask)
+        output = self.decoder(trg, enc_src, trg_mask, src_trg_mask)
         return output
 
-    def get_position_encoding(self, x):
-        max_length = x.size()[1]
-        position = torch.arange(max_length, dtype=torch.float32, device=x.device)
-        scaled_time = position.unsqueeze(1) * self.inv_timescales.unsqueeze(0)
-        signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1)
-        signal = F.pad(signal, (0, 0, 0, self.hidden_size % 2))
-        signal = signal.view(1, max_length, self.hidden_size)
-        return signal
+    def _make_pad_mask(self, query, key):
+        len_query, len_key = query.size(1), key.size(1)
+
+
+        key = key.ne(self.src_pad_idx).unsqueeze(1).unsqueeze(2)
+        key = key.repeat(1, 1, len_query, 1)
+
+        query = query.ne(self.src_pad_idx).unsqueeze(1).unsqueeze(2)
+        queryr = query.repeat(1, 1, 1, len_key)
+
+        mask = query & key
+        return mask
+
+    def _make_no_peak_mask(self, query, key):
+        len_query, len_key = query.size(1), key.size(1)
+
+        mask = torch.tril(torch.ones(len_query, len_key)).type(torch.BoolTensor).to(DEVICE)
+        return mask
