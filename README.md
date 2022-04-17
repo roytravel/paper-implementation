@@ -1,6 +1,6 @@
 # About
 Implementation of AI related papers. 
-It address natural language processing, computer vision, speech recognition/synthesis.
+It address natural language processing, computer vision, generative adversarial network, speech recognition/synthesis.
 
 # Implementation
 
@@ -11,6 +11,10 @@ It address natural language processing, computer vision, speech recognition/synt
 ## Computer Vision
 - AlexNet (2012, ImageNet Classification with Deep Convolutional Neural Networks: [paper](https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf))
 - VGGNet (2015, Very Deep Convolutional Networks For Large-Scale Image Recognition: [paper](https://arxiv.org/pdf/1409.1556.pdf))
+
+## Generative Adversarial Network
+- [GAN] (https://arxiv.org/pdf/1406.2661.pdf)
+- [DCGAN] (https://arxiv.org/pdf/1511.06434.pdf) - Facebook
 
 ## Speech Recognition/Synthesis
 - 
