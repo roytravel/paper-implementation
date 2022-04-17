@@ -13,8 +13,8 @@ It address natural language processing, computer vision, generative adversarial 
 - VGGNet (2015, Very Deep Convolutional Networks For Large-Scale Image Recognition: [paper](https://arxiv.org/pdf/1409.1556.pdf))
 
 ## Generative Adversarial Network
-- [GAN] (https://arxiv.org/pdf/1406.2661.pdf)
-- [DCGAN] (https://arxiv.org/pdf/1511.06434.pdf) - Facebook
+- GAN (2014, Genrative Adversarial Nets: [paper](https://arxiv.org/pdf/1406.2661.pdf))
+- DCGAN (2015, Unsupervised Representation Learning With Deep Convolutional Generative Adversarial Networks [paper](https://arxiv.org/pdf/1511.06434.pdf))
 
 ## Speech Recognition/Synthesis
 - 
