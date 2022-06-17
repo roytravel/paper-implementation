@@ -17,4 +17,4 @@ It address natural language processing, computer vision, generative adversarial 
 - DCGAN (2015, Unsupervised Representation Learning With Deep Convolutional Generative Adversarial Networks [paper](https://arxiv.org/pdf/1511.06434.pdf))
 
 ## Speech Recognition
-- Conforemr (2020, Conformer: Convolution-augmented Transformer for Speech Recognition: [paper](https://arxiv.org/pdf/2005.08100.pdf))
+- Conformer (2020, Conformer: Convolution-augmented Transformer for Speech Recognition: [paper](https://arxiv.org/pdf/2005.08100.pdf))
