@@ -10,19 +10,19 @@ class Inception(nn.Module):
 
         self.branch2 = nn.Sequential(
             ConvBlock(in_channels, n3x3_reduce, kernel_size=1, stride=1, padding=0),
-            ConvBlock(n3x3_reduce, n3x3, kernel_size=3, stride=1, padding=1),)
+            ConvBlock(n3x3_reduce, n3x3, kernel_size=3, stride=1, padding=1))
         
         self.branch3 = nn.Sequential(
             ConvBlock(in_channels, n5x5_reduce, kernel_size=1, stride=1, padding=0),
-            ConvBlock(n5x5_reduce, n5x5, kernel_size=5, stride=1, padding=2),)
+            ConvBlock(n5x5_reduce, n5x5, kernel_size=5, stride=1, padding=2))
 
         self.branch4 = nn.Sequential(
             nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
-            ConvBlock(in_channels, pool_proj, kernel_size=1, stride=1, padding=0),)
+            ConvBlock(in_channels, pool_proj, kernel_size=1, stride=1, padding=0))
         
     def forward(self, x: Tensor) -> Tensor:
         x1 = self.branch1(x)
-        x2= self.branch2(x)
+        x2 = self.branch2(x)
         x3 = self.branch3(x)
         x4 = self.branch4(x)
         return torch.cat([x1, x2, x3, x4], dim=1)
@@ -51,7 +51,7 @@ class GoogLeNet(nn.Module):
         self.maxpool4 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.a5 = Inception(832, 256, 160, 320, 32, 128, 128)
         self.b5 = Inception(832, 384, 192, 384, 48, 128, 128)
-        self.avgpool = nn.AvgPool2d(kernel_size=8, stride=1)
+        self.avgpool = nn.AvgPool2d(kernel_size=8, stride=1) # if output size error occurred, add padding=3
         self.dropout = nn.Dropout(p=0.4)
         self.linear = nn.Linear(1024, num_classes)
 
@@ -69,7 +69,6 @@ class GoogLeNet(nn.Module):
         x = torch.cat([x_R, x_G, x_B], 1)
         return x
         
-
     def forward(self, x: Tensor) -> Tensor:
         x = self.transform_input(x)
 
@@ -136,7 +135,7 @@ class InceptionAux(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         x = self.avgpool(x)
         x = self.conv(x)
-        x = x.view(x.size()[0], -1)
+        x = x.view(x.shape[0], -1)
         x = self.fc1(x)
         x = self.relu(x)
         x = self.dropout(x)
