@@ -7,6 +7,12 @@ import argparse
 import googlenet
 
 def load_dataset():
+    # preprocess
+    transform = transforms.Compose([    
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    # load train, test data
     train = datasets.CIFAR10(root="data/", train=True, transform=transform, download=True)
     test = datasets.CIFAR10(root="data/", train=False, transform=transform, download=True)
     train_loader = DataLoader(train, batch_size=args.batch_size, shuffle=True)
@@ -14,7 +20,6 @@ def load_dataset():
     return train_loader, test_loader
 
 def inference():
-    model.eval()
     correct, total = 0, 0
     with torch.no_grad():
         for image, label in test_loader:
@@ -26,7 +31,6 @@ def inference():
             correct += (preds == y).sum().float()
         print(f"[*] Accuracy: {(correct / total)*100}%")
 
-
 if __name__ == "__main__":
     # set hyperparameter
     parser = argparse.ArgumentParser()
@@ -37,15 +41,9 @@ if __name__ == "__main__":
     parser.add_argument('--plot', action='store', type=bool, default=True)
     args = parser.parse_args()
 
-    # preprocess
-    transform = transforms.Compose([    
-    transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
     # load dataset
     train_loader, test_loader = load_dataset()
     classes = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-
 
     # model, loss, optimizer
     losses = []
@@ -76,4 +74,5 @@ if __name__ == "__main__":
 
     # test
     if args.inference:
+        model.eval()
         inference()

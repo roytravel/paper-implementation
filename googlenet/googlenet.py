@@ -51,7 +51,8 @@ class GoogLeNet(nn.Module):
         self.maxpool4 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.a5 = Inception(832, 256, 160, 320, 32, 128, 128)
         self.b5 = Inception(832, 384, 192, 384, 48, 128, 128)
-        self.avgpool = nn.AvgPool2d(kernel_size=8, stride=1) # if output size error occurred, add padding=3
+        #self.avgpool = nn.AvgPool2d(kernel_size=8, stride=1) # if output size error occurred, choice add padding=3 or use AdaptiveAvgPool2d like bewlo:
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.dropout = nn.Dropout(p=0.4)
         self.linear = nn.Linear(1024, num_classes)
 
@@ -131,7 +132,6 @@ class InceptionAux(nn.Module):
         self.dropout = nn.Dropout(p=0.7)
         self.relu = nn.ReLU()
 
-
     def forward(self, x: Tensor) -> Tensor:
         x = self.avgpool(x)
         x = self.conv(x)
@@ -141,6 +141,7 @@ class InceptionAux(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x)
         return x
+        
         
 if __name__ == "__main__":
     x = torch.randn(3, 3, 224, 224)
