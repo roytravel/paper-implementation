@@ -1,36 +1,50 @@
+# Copyright (c) 2021, Soohwan Kim. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import math
 import torch
+import torch.nn as nn
 from torch import Tensor
 from typing import Optional
-import torch.nn as nn
+from modules import Linear
 
 
-class RelativeMultiHeadSelfAttention(nn.Moudle):
+class RelativeMultiHeadSelfAttention(nn.Module):
     """
-    Multi head attention with relative positional encoding is used in Transformer-XL
+        Multi head attention with relative positional encoding is used in Transformer-XL
     """
-    def __init__(self, d_model: int = 512, num_head: int = 8, dropout: float = 0.1) -> None:
+    def __init__(self, d_model: int = 512, num_head: int = 16, dropout_p: float = 0.1) -> None:
         super(RelativeMultiHeadSelfAttention, self).__init__()
         self.d_model = d_model
-        self.num_head = num_head
-        self.dropout = dropout
         self.d_head = d_model // num_head
-    
-    # def _query_key_matmul(self, Q: Tensor, K: Tensor) -> Tensor:
-    #     return torch.matmul(Q, K.T)
-    
-    # def _scaled_dot_attention(self, Q: Tensor, K: Tensor) -> Tensor:
-    #     x = self._query_key_matmul(Q, K)
-    #     x = x / math.sqrt(self.dk)
-    #     x = nn.Softmax(dim=-1)
-    #     return x
+        self.num_head = num_head
 
-    # def self_attention(self, Q: Tensor, K: Tensor, V: Tensor) -> Tensor:
-    #     (b, m, *_) = Q.shape
-    #     attention = self._query_key_matmul(Q, K)
-    #     x = torch.matmul(attention, V)
-    #     return x.view(b, m, -1)
+        self.query_proj = Linear(d_model, d_model)
+        self.key_proj = Linear(d_model, d_model)
+        self.value_proj = Linear(d_model, d_model)
+        self.pos_proj = Linear(d_model, d_model, bias=False)
 
+        self.dropout = nn.Dropout(p=dropout_p)
+        self.u_bias = nn.Parameter(torch.Tensor(self.num_head, self.d_head))
+        self.v_bias = nn.Parameter(torch.Tensor(self.num_head, self.d_head))
+        torch.nn.init.xavier_uniform_(self.u_bias)
+        torch.nn.init.xavier_uniform_(self.v_bias)
+
+        self.out_proj = Linear(d_model, d_model)
+
+        self.softmax = nn.Sequential(nn.Softmax(dim=-1))
+    
     def _relative_shift(self, pos_score: Tensor) -> Tensor:
         batch_size, num_head, seq_len1, seq_len2 = pos_score.size()
         zeros = pos_score.new_zeros(batch_size, num_head, seq_len1, 1)
@@ -42,19 +56,14 @@ class RelativeMultiHeadSelfAttention(nn.Moudle):
     def forward(self, query: Tensor, key: Tensor, value: Tensor, pos_embedding: Tensor, mask: Optional[Tensor] = None) -> Tensor:
         batch_size = value.size(0)
         
-        query = nn.Linear(self.d_model, self.d_model)(query).view(batch_size, -1, self.num_head, self.d_head)
-        key = nn.Linear(self.d_model, self.d_model)(key).view(batch_size, -1, self.num_head, self.d_head).permute(0, 2, 1, 3)
-        value = nn.Linear(self.d_model, self.d_model)(value).view(batch_size, -1, self.num_head, self.d_head).permute(0, 2, 1, 3)
-        pos_embedding = nn.Linear(self.d_model, self.d_model, bias=False).view(batch_size, -1, self.num_head, self.d_head)
+        query = self.query_proj(query).view(batch_size, -1, self.num_head, self.d_head)
+        key = self.key_proj(key).view(batch_size, -1, self.num_head, self.d_head).permute(0, 2, 1, 3)
+        value = self.value_proj(value).view(batch_size, -1, self.num_head, self.d_head).permute(0, 2, 1, 3)
+        pos_embedding = self.pos_proj(pos_embedding).view(batch_size, -1, self.num_head, self.d_head)
 
-        u_bias = nn.Parameter(torch.Tensor(self.num_head, self.d_head))
-        v_bias = nn.Parameter(torch.Tensor(self.num_head, self.d_head))
-        torch.nn.init.xavier_uniform_(u_bias)
-        torch.nn.init.xavier_uniform_(v_bias)
-
-        content_score = torch.matmul((query+u_bias).transpose(1, 2), key.transpose(2, 3))
-        pos_score = torch.matmul((query+v_bias).transpose(1, 2), pos_embedding.permute(0, 2, 3, 1))
-        pos_score = self.relative_shift(pos_score)
+        content_score = torch.matmul((query+self.u_bias).transpose(1, 2), key.transpose(2, 3))
+        pos_score = torch.matmul((query+self.v_bias).transpose(1, 2), pos_embedding.permute(0, 2, 3, 1))
+        pos_score = self._relative_shift(pos_score)
         
         score = (content_score + pos_score) / math.sqrt(self.d_model)
         
@@ -62,14 +71,13 @@ class RelativeMultiHeadSelfAttention(nn.Moudle):
             mask = mask.unsqueeze(1)
             score.masked_fill_(mask, -1e9)
         
-        attn = nn.Softmax(dim=-1)(score)
-        attn = nn.Dropout(self.dropout)(attn)
+        attn = self.softmax(score)
+        attn = self.dropout(attn)
 
         context = torch.matmul(attn, value).transpose(1, 2)
         context = context.contiguous().view(batch_size, -1, self.d_model)
 
-        out = nn.Linear(self.d_model, self.d_model)(context)
-        return out
+        return self.out_proj(context)
 
 
 class PositionalEncoding(nn.Module):
@@ -88,19 +96,20 @@ class PositionalEncoding(nn.Module):
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model: int, num_head: int, dropout: float = 0.1):
+    def __init__(self, d_model: int, num_head: int, dropout_p: float = 0.1):
         super(MultiHeadSelfAttention, self).__init__()
         self.pos_encoding = PositionalEncoding(d_model)
-        self.attention = RelativeMultiHeadSelfAttention(d_model, num_head, dropout)
-        self.dropout = nn.Dropout(p=dropout)
+        self.layer_norm = nn.LayerNorm(d_model)
+        self.attention = RelativeMultiHeadSelfAttention(d_model, num_head, dropout_p)
+        self.dropout = nn.Dropout(p=dropout_p)
 
 
     def forward(self, x:Tensor, mask: Optional[Tensor] = None) -> Tensor:
         batch_size, seq_len, _ = x.size()
         pos_embedding = self.pos_encoding(seq_len)
         pos_embedding = pos_embedding.repeat(batch_size, 1, 1)
-
-        x = nn.LayerNorm(self.d_model)(x)
+        
+        x = self.layer_norm(x)
         x = self.attention(x, x, x, pos_embedding=pos_embedding, mask=mask)
         x = self.dropout(x)
         return x

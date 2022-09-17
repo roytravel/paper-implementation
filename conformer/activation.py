@@ -1,14 +1,30 @@
+
+# Copyright (c) 2021, Soohwan Kim. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import math
+import numpy as np
 import torch.nn as nn
 from torch import Tensor
 
 
-class Sigmoid(nn.Module):
+class ReLU(nn.Module):
     def __init__(self) -> None:
-        super(Sigmoid).__init__()
-    
-    def forward(self, x):
-        return 1 / (1 + math.exp(-x))
+        super(ReLU).__init__()
+
+    def forward(self, x: Tensor) -> Tensor:
+        return np.maximum(0, x)
 
 
 class Swish(nn.Module):
@@ -18,10 +34,9 @@ class Swish(nn.Module):
     """
     def __init__(self) -> None:
         super(Swish, self).__init__()
-        self.sigmoid = Sigmoid()
 
     def forward(self, x: Tensor) -> Tensor:
-        return x * self.sigmoid(x)
+        return x * x.sigmoid()
 
 
 class GLU(nn.Module):
@@ -34,5 +49,5 @@ class GLU(nn.Module):
         self.dim = dim
     
     def forward(self, x: Tensor) -> Tensor:
-        x, gate = x.chunk(chunks=2, dim=self.dim)
-        return x * Sigmoid(gate)
+        x, gate = x.chunk(2, dim=self.dim)
+        return x * gate.sigmoid()
