@@ -14,7 +14,7 @@ class Sigmoid(nn.Module):
 class Swish(nn.Module):
     """
     Swish is smooth and a non-monotonic function.
-    using Swish is better than R.
+    using Swish is better than ReLU.
     """
     def __init__(self) -> None:
         super(Swish, self).__init__()
@@ -26,8 +26,8 @@ class Swish(nn.Module):
 
 class GLU(nn.Module):
     """
-    GLU: Gated Linear Units 
-    It helps gradient vanishing problem to relieve .
+    GLU: Gated Linear Units
+    It helps gradient vanishing problem to relieve.
     """
     def __init__(self, dim) -> None:
         super(GLU, self).__init__()

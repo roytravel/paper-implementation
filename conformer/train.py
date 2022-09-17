@@ -15,4 +15,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(lr=args.learning_rate, betas=(0.9, 0.98), eps=10e-9)
     criterion = nn.CTCLoss().to(device)
 
+    # 
     model = Conformer()
+
+    
