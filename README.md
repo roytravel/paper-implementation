@@ -12,6 +12,7 @@ It address natural language processing, computer vision, generative adversarial 
 - AlexNet (2012, ImageNet Classification with Deep Convolutional Neural Networks: [paper](https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf))
 - VGGNet (2015, Very Deep Convolutional Networks For Large-Scale Image Recognition: [paper](https://arxiv.org/pdf/1409.1556.pdf))
 - GoogleNet (2015, Going Deeper with convolutions: [paper](https://www.cv-foundation.org/openaccess/content_cvpr_2015/papers/Szegedy_Going_Deeper_With_2015_CVPR_paper.pdf))
+- ResNet (2016, Deep Residual Learning for Image Recognition: [paper](https://openaccess.thecvf.com/content_cvpr_2016/papers/He_Deep_Residual_Learning_CVPR_2016_paper.pdf))
 
 ## Generative Adversarial Network
 - GAN (2014, Genrative Adversarial Nets: [paper](https://arxiv.org/pdf/1406.2661.pdf))
