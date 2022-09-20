@@ -114,7 +114,7 @@ if __name__ == "__main__":
             _, preds = torch.max(output, 1)
             count += labels.size(0)
             correct += preds.eq(labels).sum().item() # torch.sum(preds == labels)
-            print (f"[*] Epoch: {epoch} \tStep: {batch_idx}/{len(train_dataloader)}\tTrain accuracy: {round((correct/count), 4)} \tTrain Loss: {round((train_loss/count), 4)}")
+            print (f"[*] Epoch: {epoch} \tStep: {batch_idx}/{len(train_dataloader)}\tTrain accuracy: {round((correct/count)*100, 4)} \tTrain Loss: {round((train_loss/count)*100, 4)}")
 
 
         model.eval()
