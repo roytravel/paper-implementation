@@ -143,7 +143,7 @@ class InceptionAux(nn.Module):
         return x
         
         
-if __name__ == "__main__":
-    x = torch.randn(3, 3, 224, 224)
-    model = GoogLeNet(aux_logits=True, num_classes=1000)
-    print (model(x)[1].shape)
+# if __name__ == "__main__":
+#     x = torch.randn(3, 3, 224, 224)
+#     model = GoogLeNet(aux_logits=True, num_classes=1000)
+#     print (model(x)[1].shape)
