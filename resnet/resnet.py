@@ -81,6 +81,7 @@ class ResNet(nn.Module):
         self.in_channels = 64
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding=3, bias=False),
+            #nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(num_features=64),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
@@ -127,23 +128,24 @@ class ResNet(nn.Module):
         return x
 
 
-def resnet18():
-    return ResNet(BasicBlock, [2, 2, 2, 2])
+class Model:
+    def resnet18(self):
+        return ResNet(BasicBlock, [2, 2, 2, 2])
 
-def resnet34():
-    return ResNet(BasicBlock, [3, 4, 6, 3])
+    def resnet34(self):
+        return ResNet(BasicBlock, [3, 4, 6, 3])
 
-def resnet50():
-    return ResNet(BottleNeck, [3, 4, 6, 3])
+    def resnet50(self):
+        return ResNet(BottleNeck, [3, 4, 6, 3])
 
-def resnet101():
-    return ResNet(BottleNeck, [3, 4, 23, 3])
+    def resnet101(self):
+        return ResNet(BottleNeck, [3, 4, 23, 3])
 
-def resnet152():
-    return ResNet(BottleNeck, [3, 8, 36, 3])
+    def resnet152(self):
+        return ResNet(BottleNeck, [3, 8, 36, 3])
 
 
 if __name__ == "__main__":
-    model = resnet152()
+    model = Model().resnet152()
     y = model(torch.randn(1, 3, 224, 224))
     print (y.size())
