@@ -81,7 +81,7 @@ if __name__ == "__main__":
         lr_scheduler.step(metrics=loss)
 
         if epoch % 5 == 0:
-            checkpoint_path = os.path.join(CHECKPOINT_PATH, "model_{}.pth".format(epoch))
+            checkpoint_path = os.path.join(CHECKPOINT_PATH, "AlexNet{}.pth".format(epoch))
             state = {
                 'epoch': epoch,
                 'optimizer': optimizer.state_dict(),
