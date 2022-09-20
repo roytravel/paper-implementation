@@ -143,4 +143,4 @@ if __name__ == "__main__":
         #     }
         #     torch.save(state, checkpoint_path)
             
-        scheduler.step()
+        scheduler.step(metrics=valid_loss)
